@@ -1,7 +1,8 @@
-#####
-# Ambientum 1.0
+###################################################
+# myD0ck3rs 1.0
 # Debian Jessie as Base Image (Dotdeb PHP builds)
-######
+###################################################
+
 FROM debian:jessie
 
 # Repository/Image Maintainer
@@ -15,21 +16,62 @@ ENV NR_ENABLED=false \
 # Add the ENTRYPOINT script
 ADD start.sh /scripts/start.sh
 
-# Install PHP From DotDeb, Common Extensions, Composer and then cleanup
-RUN echo "---> Updating Repository" && \
+# Update Repository, upgrade distro and install common tools
+RUN echo "---> Changes and updates for apt packages sources.list" && \
+    echo "deb-src http://httpredir.debian.org/debian/ jessie main" >> /etc/apt/sources.list && \
+    echo "deb-src http://security.debian.org/ jessie/updates main" >> /etc/apt/sources.list && \
+    cat /etc/apt/sources.list && \
+    echo "---> Updating Repository" && \
     apt-get update -y && \
-    dpkg-reconfigure -f noninteractive tzdata && \
+    echo "---> Upgrade Distro" && \
     apt-get upgrade -y && \
     apt-get install -y curl \
     wget \
     nano \
     vim \
-    sudo && \
-    echo "---> Preparing and Installing PHP" && \
+    locales && \
+    echo "---> Configure timezone and locale" && \
+    echo "America/Sao_Paulo" > /etc/timezone && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    echo 'LANG="en_US.UTF-8"'>/etc/default/locale && \
+    dpkg-reconfigure --frontend=noninteractive locales && \
+    update-locale LANG=en_US.UTF-8
+    
+# Install UnixODBC and Compile ODBC_config
+RUN echo "---> Preparing and Installing UnixODBC and ODBC_config" && \
+    apt-get -y install unixodbc \
+    unixodbc-dev \
+    libgss3 \
+    odbcinst \
+    devscripts \
+    debhelper \
+    dh-exec \
+    dh-autoreconf \
+    libreadline-dev \
+    libltdl-dev && \
+    cd /tmp && \
+    dget -ux http://http.debian.net/debian/pool/main/u/unixodbc/unixodbc_2.3.1-3.dsc && \
+    cd unixodbc-2.3.1 && \
+    dpkg-buildpackage -uc -us -B -d && \
+    cp ./exe/odbc_config /usr/local/bin
+    
+# Compile and Install Microsoft ODBC Driver for SQL Server
+RUN echo "---> Downloading, Extracting, Compiling and Installing Microsoft ODBC Driver" && \
+    cd /tmp && \
+    wget -nv -O msodbcsql-13.0.0.0.tar.gz "https://meetsstorenew.blob.core.windows.net/contianerhd/Ubuntu%2013.0%20Tar/msodbcsql-13.0.0.0.tar.gz?st=2016-10-18T17%3A29%3A00Z&se=2022-10-19T17%3A29%3A00Z&sp=rl&sv=2015-04-05&sr=b&sig=cDwPfrouVeIQf0vi%2BnKt%2BzX8Z8caIYvRCmicDL5oknY%3D" && \
+    tar xf msodbcsql-13.0.0.0.tar.gz && \
+    cd msodbcsql-13.0.0.0/ && \
+    ldd lib64/libmsodbcsql-13.0.so.0.0; echo "RET=$?" && \
+    sed -i "s/uname -p/uname -m/g" install.sh && \
+    ./install.sh install --accept-license
+    
+# Install PHP From DotDeb, Common Extensions, Composer and then cleanup    
+RUN echo "---> Preparing and Installing PHP" && \
     echo "deb http://packages.dotdeb.org jessie all" > /etc/apt/sources.list.d/dotdeb.list && \
     curl -sS https://www.dotdeb.org/dotdeb.gpg | apt-key add - && \
     apt-get update -y && \
-    apt-get -y install \
+    apt-get -y install php7.0-dev \
     php7.0-apcu \
     php7.0-bz2 \
     php7.0-cli \
@@ -54,7 +96,28 @@ RUN echo "---> Updating Repository" && \
     php7.0-zip \
     php7.0-phpdbg && \
     echo "---> Installing Composer" && \
-    curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer && \
+    curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+    
+# Compile PDO Extensions with phpize
+RUN echo "---> Compiling pdo_sqlsrv and sqlsrv with phpize" && \
+    cd /tmp/ && \
+    wget -nv https://github.com/Microsoft/msphpsql/archive/PHP-7.0-Linux.tar.gz && \
+    tar -xf PHP-7.0-Linux.tar.gz && \
+    cd msphpsql-PHP-7.0-Linux/source/pdo_sqlsrv/ && \
+    phpize && \
+    ./configure CXXFLAGS=-std=c++11 && \
+    make && \
+    make "INSTALL=$(pwd)/build/shtool install -c --mode=0644" install && \
+    echo -e "; priority=20\nextension=pdo_sqlsrv.so" > /etc/php/7.0/mods-available/pdo_sqlsrv.ini && \
+    cd ../sqlsrv/ && \
+    phpize && \
+    ./configure CXXFLAGS=-std=c++11 && \
+    make && \
+    make "INSTALL=$(pwd)/build/shtool install -c --mode=0644" install && \
+    echo -e "; priority=20\nextension=sqlsrv.so" > /etc/php/7.0/mods-available/sqlsrv.ini && \
+    echo "---> Enabling PHP mods" && \
+    phpenmod pdo_sqlsrv && \
+    phpenmod sqlsrv && \
     echo "---> Cleaning up" && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc/*
