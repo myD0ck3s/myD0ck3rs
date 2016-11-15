@@ -1,2 +1,2 @@
-TAGS="7.0 7.0-caddy latest-caddy 7.0-nginx latest-nginx"
+TAGS="7.0 7.0-caddy latest-caddy 7.0-nginx latest-nginx 7.0-sqlsrv latest-sqlsrv 7.0-caddy-sqlsrv latest-caddy-sqlsrv 7.0-nginx-sqlsrv latest-nginx-sqlsrv"
 LATEST="7.0"
