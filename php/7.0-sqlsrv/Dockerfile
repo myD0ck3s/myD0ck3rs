@@ -138,8 +138,8 @@ RUN echo "---> Adding DotDeb Source List" && \
     echo "---> Installing PDO Extensions for SQL Server" && \
     mkdir -p /tmp/msodbcdebian && \
     cd /tmp/msodbcdebian && \
-    wget https://github.com/Microsoft/msphpsql/releases/download/v4.0.5-Linux/Ubuntu15.zip && \
-    unzip Ubuntu15.zip && \
+    wget https://github.com/Microsoft/msphpsql/releases/download/4.0.6-Linux/Ubuntu15.tar && \
+    tar -xvf Ubuntu15.tar && \
     cp ./Ubuntu15/php_pdo_sqlsrv_7_nts.so /usr/lib/php/20151012/ && \
     cp ./Ubuntu15/php_sqlsrv_7_nts.so /usr/lib/php/20151012/ && \
     echo -e "; priority=20\nextension=php_pdo_sqlsrv_7_nts.so" > /etc/php/7.0/mods-available/pdo_sqlsrv.ini && \
